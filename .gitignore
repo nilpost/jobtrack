@@ -56,3 +56,5 @@ pnpm-debug.log*
 
 # Test / coverage
 coverage/
+dist-ssr/
+*.tsbuildinfo
