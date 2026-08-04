@@ -1,0 +1,11 @@
+{
+  "name": "jobtrack",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A local-first, self-hostable job application Kanban tracker. Works in the browser with zero setup; import from CSV, PDF/DOCX resumes, LinkedIn data exports, or job-agent.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "guard": "node tools/guard-repo.mjs"
+  }
+}

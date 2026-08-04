@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build output
+dist/
+dist-ssr/
+*.local
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# ---------------------------------------------------------------------------
+# Personal data. jobtrack's entire purpose is ingesting real CVs, LinkedIn
+# exports, and job-application records — so unlike a typical app, "someone's
+# real personal files ending up in a test fixture" is a live risk, not a
+# hypothetical. Anything matching these patterns must never be committed.
+# See tools/guard-repo.mjs, which enforces this list in CI.
+# ---------------------------------------------------------------------------
+dev-data/
+**/dev-data/**
+*.local.json
+*.local.csv
+sample-real/
+fixtures/real/
+
+# Resume / CV files a developer might drop in for manual testing
+*resume*.pdf
+*resume*.docx
+*cv*.pdf
+*cv*.docx
+
+# LinkedIn data-export bundles (official filename patterns)
+Complete_LinkedInDataExport_*.zip
+Basic_LinkedInDataExport_*.zip
+LinkedInDataExport*/
+
+# job-agent files, if a developer points the adapter at a local copy for testing
+job_search_tracker.csv
+seen_jobs.json
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test / coverage
+coverage/

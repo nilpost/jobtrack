@@ -1,0 +1,138 @@
+#!/usr/bin/env node
+/**
+ * Public-repo guard for jobtrack.
+ *
+ * Run: node tools/guard-repo.mjs
+ *
+ * jobtrack's entire purpose is ingesting real CVs, LinkedIn exports, and
+ * job-application records. That makes "a real personal file lands in a test
+ * fixture and gets committed" a live risk for a public repo, not a
+ * hypothetical — this guard exists to make that LOUD in CI rather than
+ * silently mergeable.
+ *
+ * Checks:
+ * 1. .gitignore — every required personal-data pattern below must still be
+ *    present, and no un-allowlisted negation (!pattern) may re-include one.
+ * 2. Tracked files (via `git ls-files`, not the working tree — a file only
+ *    matters here once it would actually be committed) — none may match a
+ *    personal-data filename pattern.
+ *
+ * Stdlib only. Exit 0 on success, 1 with a failure list otherwise.
+ */
+
+import { execFileSync } from "node:child_process"
+import { readFileSync, existsSync } from "node:fs"
+import { resolve, dirname } from "node:path"
+import { fileURLToPath } from "node:url"
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
+const errors = []
+
+// Patterns that must remain in .gitignore. A PR that intentionally needs to
+// change one of these should edit this list in the same diff — that is the
+// point: the change becomes visible in review instead of buried.
+const REQUIRED_IGNORE_RULES = [
+  "dev-data/",
+  "*.local.json",
+  "*.local.csv",
+  "sample-real/",
+  "fixtures/real/",
+  "*resume*.pdf",
+  "*resume*.docx",
+  "*cv*.pdf",
+  "*cv*.docx",
+  "Complete_LinkedInDataExport_*.zip",
+  "Basic_LinkedInDataExport_*.zip",
+  "job_search_tracker.csv",
+  "seen_jobs.json",
+  ".env",
+]
+
+// Negations the repo legitimately ships. Any other `!pattern` in .gitignore
+// is treated as a failure — .gitignore is order-sensitive, so a later
+// negation can silently re-include something REQUIRED_IGNORE_RULES still
+// lists, and a simple set-membership check can't see that.
+const ALLOWED_NEGATIONS = new Set([".env.example"])
+
+// Filename patterns that must never be tracked in git, regardless of what
+// .gitignore says right now (belt-and-suspenders — catches a `git add -f`
+// or a gitignore regression in the same PR).
+const FORBIDDEN_TRACKED_PATTERNS = [
+  /resume.*\.(pdf|docx)$/i,
+  /\bcv\b.*\.(pdf|docx)$/i,
+  /LinkedInDataExport.*\.zip$/i,
+  /^job_search_tracker\.csv$/,
+  /^seen_jobs\.json$/,
+  /\.env$/,
+  /\.local\.(json|csv)$/,
+]
+// Explicit, known-synthetic fixtures are exempt from the pattern match above.
+const FIXTURE_ALLOWLIST = new Set([
+  // e.g. "apps/web/e2e/fixtures/sample-resume.pdf" once that fixture exists.
+])
+
+function checkGitignore() {
+  const path = resolve(ROOT, ".gitignore")
+  if (!existsSync(path)) {
+    errors.push(".gitignore is missing entirely.")
+    return
+  }
+  const lines = readFileSync(path, "utf8").split("\n").map((l) => l.trim())
+
+  for (const rule of REQUIRED_IGNORE_RULES) {
+    if (!lines.includes(rule)) {
+      errors.push(`.gitignore is missing required rule: "${rule}"`)
+    }
+  }
+
+  for (const line of lines) {
+    if (line.startsWith("!") && line.length > 1) {
+      const pattern = line.slice(1)
+      if (!ALLOWED_NEGATIONS.has(pattern)) {
+        errors.push(
+          `.gitignore has an un-allowlisted negation "${line}" — if this is ` +
+            `intentional, add "${pattern}" to ALLOWED_NEGATIONS in ` +
+            `tools/guard-repo.mjs in the same PR.`,
+        )
+      }
+    }
+  }
+}
+
+function checkTrackedFiles() {
+  let tracked
+  try {
+    tracked = execFileSync("git", ["ls-files"], { cwd: ROOT, encoding: "utf8" })
+      .split("\n")
+      .filter(Boolean)
+  } catch {
+    errors.push("Could not run `git ls-files` — is this a git repository?")
+    return
+  }
+
+  for (const file of tracked) {
+    if (FIXTURE_ALLOWLIST.has(file)) continue
+    for (const pattern of FORBIDDEN_TRACKED_PATTERNS) {
+      if (pattern.test(file)) {
+        errors.push(
+          `Tracked file "${file}" matches a forbidden personal-data pattern ` +
+            `(${pattern}). If this is a genuine synthetic fixture, add its ` +
+            `exact path to FIXTURE_ALLOWLIST in tools/guard-repo.mjs in the ` +
+            `same PR that adds it.`,
+        )
+      }
+    }
+  }
+}
+
+checkGitignore()
+checkTrackedFiles()
+
+if (errors.length > 0) {
+  console.error("guard-repo: FAILED\n")
+  for (const e of errors) console.error(`  - ${e}`)
+  console.error(`\n${errors.length} issue(s) found.`)
+  process.exit(1)
+}
+
+console.log("guard-repo: OK")
