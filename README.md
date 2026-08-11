@@ -21,10 +21,20 @@ sync-backend setup, and the plan this was built from for the full roadmap.
 ## Import sources
 
 - Manual entry
-- CSV (generic, or straight from [job-agent](https://github.com/MadsLorentzen/ai-job-search))
+- CSV round-trip in jobtrack's own format (Export CSV → edit → Import CSV)
+- **[job-agent](https://github.com/MadsLorentzen/ai-job-search)** — reads
+  `job_search_tracker.csv` directly (job-agent's own 13-column format, not
+  jobtrack's) and optionally `job_scraper/seen_jobs.json` for fit score,
+  verdict, and work-authorization signal. One-way and re-runnable: nothing is
+  written back to job-agent's files, and re-importing the same data is a
+  no-op. Matching is case-insensitive on company + role; job-agent's status
+  always wins on conflict (it's the system of record for what actually
+  happened), but every other field is additive — a blank cell in the CSV
+  never erases something you entered locally in jobtrack, and notes/files
+  merge rather than replace. See [src/lib/importers/jobAgent.ts](src/lib/importers/jobAgent.ts).
 - Resume PDF / DOCX (heuristic extraction into an editable review form —
-  never auto-committed without you checking it)
-- LinkedIn's own "Get a copy of your data" export
+  never auto-committed without you checking it) — not yet built
+- LinkedIn's own "Get a copy of your data" export — not yet built
 
 jobtrack does not scrape or automate LinkedIn, and "Sign in with LinkedIn"
 (when it ships) is identity-only — LinkedIn's own API does not expose work

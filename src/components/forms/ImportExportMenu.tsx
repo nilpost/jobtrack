@@ -1,15 +1,17 @@
-import { useRef } from "react"
+import { useRef, useState } from "react"
 import { toast } from "sonner"
-import { Download, Upload, Sparkles } from "lucide-react"
+import { Download, Upload, Sparkles, Workflow } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { downloadCSV, exportToCSV, parseJobtrackCSV } from "@/lib/csv"
 import { createApplication } from "@/lib/db"
 import { loadSampleData } from "@/lib/sampleData"
 import type { Application } from "@/lib/types"
+import { ImportJobAgentDialog } from "./ImportJobAgentDialog"
 
 export function ImportExportMenu({ apps }: { apps: Application[] }) {
   const fileInput = useRef<HTMLInputElement>(null)
+  const [jobAgentDialogOpen, setJobAgentDialogOpen] = useState(false)
 
   function handleExport() {
     if (apps.length === 0) {
@@ -71,12 +73,21 @@ export function ImportExportMenu({ apps }: { apps: Application[] }) {
         <Download className="h-3.5 w-3.5" />
         Export CSV
       </Button>
+      <Button variant="outline" size="sm" onClick={() => setJobAgentDialogOpen(true)}>
+        <Workflow className="h-3.5 w-3.5" />
+        Import from job-agent
+      </Button>
       {apps.length === 0 && (
         <Button variant="secondary" size="sm" onClick={handleLoadSample}>
           <Sparkles className="h-3.5 w-3.5" />
           Load sample data
         </Button>
       )}
+      <ImportJobAgentDialog
+        open={jobAgentDialogOpen}
+        onOpenChange={setJobAgentDialogOpen}
+        existingApps={apps}
+      />
     </div>
   )
 }
