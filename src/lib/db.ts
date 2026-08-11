@@ -1,5 +1,11 @@
 import Dexie, { type EntityTable } from "dexie"
 import type { Application, NewApplication, NoteEntry, Status } from "./types"
+import type { CandidateProfile } from "./profileTypes"
+
+/** The profile table holds exactly one row, at this fixed key — there is
+ *  one candidate per browser, not many. */
+const PROFILE_ID = "singleton"
+type ProfileRow = CandidateProfile & { id: typeof PROFILE_ID }
 
 /**
  * The only storage a fresh install needs. Nested arrays (stageHistory,
@@ -9,6 +15,7 @@ import type { Application, NewApplication, NoteEntry, Status } from "./types"
  */
 class JobtrackDB extends Dexie {
   applications!: EntityTable<Application, "id">
+  profile!: EntityTable<ProfileRow, "id">
 
   constructor() {
     super("jobtrack")
@@ -16,6 +23,13 @@ class JobtrackDB extends Dexie {
       // Only fields queried/sorted/filtered on need an index. Everything
       // else (notes, stageHistory, files) is read off the row directly.
       applications: "id, status, company, updatedAt",
+    })
+    // v2 adds the profile table for the Career Showcase tab. Dexie requires
+    // restating every table's schema at each version, not just the new one
+    // — the applications line is unchanged, so no migration runs for it.
+    this.version(2).stores({
+      applications: "id, status, company, updatedAt",
+      profile: "id",
     })
   }
 }
@@ -93,4 +107,19 @@ export async function clearAllApplications(): Promise<void> {
 
 export async function countApplications(): Promise<number> {
   return db.applications.count()
+}
+
+// ---------------------------------------------------------------------------
+// Candidate profile (Career Showcase tab) — a singleton row.
+// ---------------------------------------------------------------------------
+
+export async function getProfile(): Promise<CandidateProfile | undefined> {
+  const row = await db.profile.get(PROFILE_ID)
+  if (!row) return undefined
+  const { id: _id, ...profile } = row
+  return profile
+}
+
+export async function saveProfile(profile: Omit<CandidateProfile, "updatedAt">): Promise<void> {
+  await db.profile.put({ ...profile, id: PROFILE_ID, updatedAt: nowISO() })
 }

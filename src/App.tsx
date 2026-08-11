@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Toaster } from "@/components/ui/sonner"
 import { Pipeline } from "@/pages/Pipeline"
+import { CareerShowcase } from "@/pages/CareerShowcase"
 import { ComingSoon } from "@/pages/ComingSoon"
 
 const queryClient = new QueryClient()
@@ -35,10 +36,7 @@ export default function App() {
             />
           </TabsContent>
           <TabsContent value="career">
-            <ComingSoon
-              title="Career Showcase"
-              description="A portfolio view generated from your profile data, once you've entered or imported it."
-            />
+            <CareerShowcase />
           </TabsContent>
         </Tabs>
       </div>

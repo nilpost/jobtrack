@@ -39,7 +39,9 @@
     "dexie": "^4.0.11",
     "dexie-react-hooks": "^1.1.7",
     "lucide-react": "^0.462.0",
+    "mammoth": "^1.12.1",
     "papaparse": "^5.4.1",
+    "pdfjs-dist": "^4.10.38",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-dropzone": "^14.3.5",
@@ -66,6 +68,7 @@
   },
   "allowScripts": {
     "esbuild@0.21.5": true,
-    "@swc/core@1.15.47": true
+    "@swc/core@1.15.47": true,
+    "fsevents@2.3.3": true
   }
 }

@@ -32,8 +32,11 @@ sync-backend setup, and the plan this was built from for the full roadmap.
   happened), but every other field is additive — a blank cell in the CSV
   never erases something you entered locally in jobtrack, and notes/files
   merge rather than replace. See [src/lib/importers/jobAgent.ts](src/lib/importers/jobAgent.ts).
-- Resume PDF / DOCX (heuristic extraction into an editable review form —
-  never auto-committed without you checking it) — not yet built
+- **Resume PDF / DOCX** — real text-layer extraction (pdf.js for PDF, mammoth
+  for DOCX — not OCR; resumes are generated documents with a real text layer)
+  feeding a heuristic section/contact parser. Populates the Career Showcase
+  tab's profile via an editable review form — nothing is ever saved without
+  you checking it first. See [src/lib/importers/resume.ts](src/lib/importers/resume.ts).
 - LinkedIn's own "Get a copy of your data" export — not yet built
 
 jobtrack does not scrape or automate LinkedIn, and "Sign in with LinkedIn"
