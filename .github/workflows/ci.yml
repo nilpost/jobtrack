@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # First, and as its own step: this is the check that stops a real CV,
+      # a LinkedIn export, or a sync database from landing in a public repo.
+      # It should fail loudly and before anything else spends time.
+      - name: Guard against committed personal data
+        run: npm run guard
+
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # node:sqlite needs 22.5+; the sync server has no other floor.
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - run: npm ci
+        working-directory: server
+      - run: npx tsc --noEmit
+        working-directory: server
+      - run: npm test
+        working-directory: server

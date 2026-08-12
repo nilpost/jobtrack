@@ -8,6 +8,20 @@ const PROFILE_ID = "singleton"
 type ProfileRow = CandidateProfile & { id: typeof PROFILE_ID }
 
 /**
+ * A record of a deleted application, kept after the row itself is gone.
+ *
+ * Only sync needs this. Without a tombstone, a deleted application is merely
+ * absent from this browser's data, and the sync server — which cannot tell
+ * "deleted here" from "never seen here" — pushes it back from another
+ * device. Recording the deletion as a dated fact is what lets it win that
+ * comparison. See server/src/sync.ts.
+ */
+export interface DeletionRecord {
+  id: string
+  deletedAt: string
+}
+
+/**
  * The only storage a fresh install needs. Nested arrays (stageHistory,
  * notes, files) are stored as structured-clone values on the row — IndexedDB
  * supports this natively, so there is no need for child tables at this scale
@@ -16,6 +30,7 @@ type ProfileRow = CandidateProfile & { id: typeof PROFILE_ID }
 class JobtrackDB extends Dexie {
   applications!: EntityTable<Application, "id">
   profile!: EntityTable<ProfileRow, "id">
+  deletions!: EntityTable<DeletionRecord, "id">
 
   constructor() {
     super("jobtrack")
@@ -30,6 +45,14 @@ class JobtrackDB extends Dexie {
     this.version(2).stores({
       applications: "id, status, company, updatedAt",
       profile: "id",
+    })
+    // v3 adds deletion tombstones for the optional sync backend. Additive
+    // like v2 — a browser that never enables sync simply accumulates a few
+    // tiny rows here and is otherwise unaffected.
+    this.version(3).stores({
+      applications: "id, status, company, updatedAt",
+      profile: "id",
+      deletions: "id",
     })
   }
 }
@@ -97,12 +120,22 @@ export async function addNote(id: string, text: string): Promise<void> {
   })
 }
 
+/** Deleting always writes a tombstone in the same transaction — a delete
+ *  that isn't recorded is a delete that sync will undo. */
 export async function deleteApplication(id: string): Promise<void> {
-  await db.applications.delete(id)
+  await db.transaction("rw", db.applications, db.deletions, async () => {
+    await db.applications.delete(id)
+    await db.deletions.put({ id, deletedAt: nowISO() })
+  })
 }
 
 export async function clearAllApplications(): Promise<void> {
-  await db.applications.clear()
+  await db.transaction("rw", db.applications, db.deletions, async () => {
+    const ids = await db.applications.toCollection().primaryKeys()
+    const at = nowISO()
+    await db.applications.clear()
+    await db.deletions.bulkPut(ids.map((id) => ({ id: String(id), deletedAt: at })))
+  })
 }
 
 export async function countApplications(): Promise<number> {
@@ -122,4 +155,45 @@ export async function getProfile(): Promise<CandidateProfile | undefined> {
 
 export async function saveProfile(profile: Omit<CandidateProfile, "updatedAt">): Promise<void> {
   await db.profile.put({ ...profile, id: PROFILE_ID, updatedAt: nowISO() })
+}
+
+// ---------------------------------------------------------------------------
+// Sync bridge — only used when the optional sync backend is configured.
+// ---------------------------------------------------------------------------
+
+export interface LocalSyncState {
+  applications: Application[]
+  profile: CandidateProfile | null
+  deletions: DeletionRecord[]
+}
+
+export async function getLocalSyncState(): Promise<LocalSyncState> {
+  const [applications, profile, deletions] = await Promise.all([
+    db.applications.toArray(),
+    getProfile(),
+    db.deletions.toArray(),
+  ])
+  return { applications, profile: profile ?? null, deletions }
+}
+
+/**
+ * Replaces local state with the server's merged result, in one transaction.
+ *
+ * Wholesale replacement rather than a diff: the server already performed the
+ * merge, so applying its answer field-by-field would just be a second,
+ * subtly different merge — and any divergence between the two would be
+ * invisible until data went missing. A partial apply is also why this is
+ * transactional: half-applied state is a state no merge ever produced.
+ */
+export async function replaceLocalSyncState(state: LocalSyncState): Promise<void> {
+  await db.transaction("rw", db.applications, db.profile, db.deletions, async () => {
+    await db.applications.clear()
+    await db.applications.bulkPut(state.applications)
+    await db.deletions.clear()
+    await db.deletions.bulkPut(state.deletions)
+    await db.profile.clear()
+    if (state.profile) {
+      await db.profile.put({ ...state.profile, id: PROFILE_ID })
+    }
+  })
 }

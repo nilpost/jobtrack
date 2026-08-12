@@ -47,6 +47,13 @@ LinkedInDataExport*/
 job_search_tracker.csv
 seen_jobs.json
 
+# Sync-server database. Holds every application, note and profile the server
+# has ever seen — the single most sensitive artifact this repo can produce.
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+server/data/
+
 # Editor / OS
 .vscode/
 .idea/

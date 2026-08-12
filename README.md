@@ -26,9 +26,18 @@ Usable. All three tabs are built and working entirely in the browser:
   documents themselves.
 - **Career Showcase** — a profile built from a resume or LinkedIn export.
 
-Not built yet: "Sign in with LinkedIn" (identity-only OAuth), the optional
-self-hosted sync backend, and deployment. See
-[docs/STATUS.md](docs/STATUS.md) for where things stand in detail.
+Optional, off by default, and not required for any of the above:
+
+- **Sync across devices** — a small self-hostable server ([server/](server))
+  built on Node + SQLite. Point the app at it and your applications and
+  profile follow you between devices; ignore it and nothing changes. See
+  [docs/self-hosting.md](docs/self-hosting.md).
+- **Sign in with LinkedIn** — identity only (name, email, photo). It cannot
+  import work history; LinkedIn does not expose that to third-party apps.
+  The data-export importer above is the path for that, and the UI says so.
+
+Both need credentials you supply. See [docs/STATUS.md](docs/STATUS.md) for
+where things stand in detail.
 
 ## Import sources
 
@@ -72,6 +81,17 @@ npm install
 npm run dev
 ```
 
+The sync server is a separate package with its own dependencies:
+
+```bash
+npm run test:all
+```
+
+That runs the frontend suite and the server suite. `npm test` alone is the
+frontend only — `server/` is excluded from the root vitest config on
+purpose, since it would otherwise fail for anyone who has not installed
+inside `server/`.
+
 Before committing, run the repo guard (also runs in CI):
 
 ```bash
@@ -79,9 +99,9 @@ npm run guard
 ```
 
 It fails loudly if a personal-data file pattern (a real resume, a LinkedIn
-export, a `job_search_tracker.csv`) is about to be committed, or if
-`.gitignore`'s protections against that are weakened. See
-[tools/guard-repo.mjs](tools/guard-repo.mjs).
+export, a `job_search_tracker.csv`, a sync server's `.sqlite` database) is
+about to be committed, or if `.gitignore`'s protections against that are
+weakened. See [tools/guard-repo.mjs](tools/guard-repo.mjs).
 
 ## License
 

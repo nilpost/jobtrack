@@ -27,19 +27,41 @@ runs client-side against IndexedDB.
 90 unit tests. `npm run typecheck`, `npm test`, `npm run guard`, and
 `npm run build` all pass.
 
-## Not built
+| Sync server (`server/`) — merge, storage, auth, LinkedIn OIDC routes | Built, needs credentials |
+| Sync UI (Settings → Sync) + deletion tombstones | Done |
+| Deployment config (Dockerfile, compose, CI, registry entry) | Built, needs credentials |
 
-- **"Sign in with LinkedIn" (OIDC).** Identity only — name, email, photo.
-  Verified against LinkedIn's current docs that their self-serve OAuth
-  product does *not* expose work history to third-party apps, so this can
-  never be a data-import path; the data-export importer already covers that.
-  Needs a LinkedIn developer app and a client secret, so it can't be
-  completed without account access.
-- **Optional self-hosted sync backend.** The app is deliberately fully
-  functional without it. Would be a small REST service over jobtrack's own
-  schema; IndexedDB becomes a cache when configured.
-- **Deployment.** Public demo instance + a private gated instance. Requires
-  live Cloudflare/DNS/secret changes, so it needs a human at the console.
+## Built but blocked on credentials
+
+The code is complete and tested. Each of these needs a value only the
+operator can supply — nothing further can be written without it.
+
+- **Sync server.** Runs today: `cd server && cp .env.example .env`, fill in
+  two generated secrets and the app origin, `docker compose up -d`. The
+  blocking input is the secrets themselves. Verified end-to-end locally
+  against the real app (connect → sync → delete → re-sync).
+- **"Sign in with LinkedIn" (OIDC).** Routes, CSRF state, token exchange,
+  and the signed session cookie are implemented. Blocked on a LinkedIn
+  developer app: `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, and a
+  registered redirect URL. Identity only — LinkedIn removed work history
+  from self-serve API access in 2023, so this can never become an import
+  path no matter what scopes are requested.
+- **Deployment.** `Dockerfile`, `docker-compose.yml` (with a Cloudflare
+  Tunnel sidecar), a CI workflow, and a `status: "planned"` entry in
+  `postius-hub/projects.json` for `jobs.postiusgroup.com` all exist.
+  Blocked on live Cloudflare/DNS/secret changes, which need a human at the
+  console.
+
+Two deployment gotchas already encoded in the config, worth not
+rediscovering:
+
+- **Do not put Cloudflare Access in front of the *sync* hostname.** The
+  browser reaches it with `fetch()`, which cannot complete an Access login,
+  so sync fails with a confusing JSON parse error. Access on the *app*
+  hostname is fine.
+- **Only one `projects.json` entry exists for this repo.** `gen-repo-config`
+  keys generated files by clone directory, so a second entry sharing
+  `repo: "jobtrack"` would overwrite the first one's config.
 
 ## Invariants worth knowing before changing code
 
@@ -71,6 +93,17 @@ fail quietly rather than loudly.
    allowlist entry in the same commit.
 6. **Develop from `~/dev/jobtrack`, not the Google-Drive-mounted tree.**
    `npm install` does not work reliably on the Drive mount.
+7. **A delete must write a tombstone.** `deleteApplication` and
+   `clearAllApplications` record the deleted id in the `deletions` table in
+   the same transaction. Without it, sync cannot distinguish "deleted here"
+   from "never seen here", and the record returns from another device on the
+   next sync. See `server/src/sync.ts`.
+8. **An empty client payload must never wipe the server.** A new device
+   syncing for the first time sends no applications; treating absence as
+   deletion would erase everything. Asserted in `server/test/sync.test.ts`.
+9. **The sync token lives in localStorage, not IndexedDB.** It is
+   per-device configuration, not user data — it must not travel in an
+   export, a CSV, or the sync payload.
 
 ## Verifying a change
 

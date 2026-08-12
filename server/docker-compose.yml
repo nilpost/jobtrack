@@ -1,0 +1,52 @@
+# Reference deployment for the jobtrack sync server.
+#
+# Note what is NOT here: a published port. The server is reached through a
+# Cloudflare Tunnel, so the container never listens on the host and the NAS
+# needs no port forwarding, no inbound firewall rule, and no public IP. If
+# you would rather expose it directly, add `ports: ["8787:8787"]` — but then
+# authentication is the only thing between your job search and the internet,
+# so read the token guidance in .env.example first.
+#
+# See ../docs/self-hosting.md for the full walkthrough.
+
+services:
+  jobtrack-sync:
+    build: .
+    image: jobtrack-sync:latest
+    container_name: jobtrack-sync
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      # The SQLite database. This is the whole point of the deployment —
+      # back this path up.
+      - jobtrack-data:/data
+    networks: [jobtrack]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Reaches out to Cloudflare and holds the connection open, so traffic
+  # arrives without anything being exposed inbound. Create the tunnel and
+  # copy its token per docs/self-hosting.md.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: jobtrack-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      # From the Cloudflare Zero Trust dashboard. Treat it like a password:
+      # anyone holding it can serve traffic on your hostname.
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      jobtrack-sync:
+        condition: service_healthy
+    networks: [jobtrack]
+
+volumes:
+  jobtrack-data:
+
+networks:
+  jobtrack:

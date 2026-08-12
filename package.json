@@ -12,7 +12,9 @@
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
     "guard": "node tools/guard-repo.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:server": "npm --prefix server test",
+    "test:all": "npm run test && npm run test:server"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

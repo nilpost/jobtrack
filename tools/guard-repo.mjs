@@ -46,6 +46,12 @@ const REQUIRED_IGNORE_RULES = [
   "job_search_tracker.csv",
   "seen_jobs.json",
   ".env",
+  // The sync server's database — every application, note and profile it has
+  // ever stored, in one file.
+  "*.sqlite",
+  "*.sqlite-wal",
+  "*.sqlite-shm",
+  "server/data/",
 ]
 
 // Negations the repo legitimately ships. Any other `!pattern` in .gitignore
@@ -69,6 +75,7 @@ const FORBIDDEN_TRACKED_PATTERNS = [
   /^seen_jobs\.json$/,
   /\.env$/,
   /\.local\.(json|csv)$/,
+  /\.sqlite(-wal|-shm)?$/,
 ]
 // Explicit, known-synthetic fixtures are exempt from the pattern match above.
 const FIXTURE_ALLOWLIST = new Set([
