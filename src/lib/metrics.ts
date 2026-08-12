@@ -9,7 +9,10 @@ export interface Rate {
   pct: number | null // null when `of` is 0 — nothing to divide
 }
 
-function rate(count: number, of: number): Rate {
+/** Exported so every module reporting a rate (see documents.ts) shares one
+ *  rounding rule and one "nothing to divide" guard, rather than each
+ *  reinventing them slightly differently. */
+export function rate(count: number, of: number): Rate {
   return { count, of, pct: of > 0 ? Math.round((count / of) * 1000) / 10 : null }
 }
 

@@ -14,9 +14,21 @@ control if you want it on more than one device.
 
 ## Status
 
-Early build — Phase 1 (local-first core) in progress. See
-[docs/self-hosting.md](docs/self-hosting.md) once it exists for the optional
-sync-backend setup, and the plan this was built from for the full roadmap.
+Usable. All three tabs are built and working entirely in the browser:
+
+- **Pipeline** — Kanban board (drag to change stage) plus metrics: funnel,
+  response and rejection rates, median time to first response, follow-up
+  queue, and response rate segmented by channel and by the posting's stated
+  work-authorization requirement.
+- **CV & Cover Letters** — document coverage across submitted applications,
+  which ones are missing materials, and which documents are reused across
+  several companies. Filenames only; jobtrack never stores or uploads the
+  documents themselves.
+- **Career Showcase** — a profile built from a resume or LinkedIn export.
+
+Not built yet: "Sign in with LinkedIn" (identity-only OAuth), the optional
+self-hosted sync backend, and deployment. See
+[docs/STATUS.md](docs/STATUS.md) for where things stand in detail.
 
 ## Import sources
 

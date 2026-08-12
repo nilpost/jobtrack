@@ -20,6 +20,11 @@ export const applicationFormSchema = z.object({
   ),
   authorizationSignal: z.enum(AUTHORIZATION_SIGNALS).optional(),
   contactPerson: z.string().trim().optional(),
+  // Filenames only — jobtrack never stores or syncs document bytes (see
+  // FileRef). Flat fields here rather than a nested array because the form
+  // offers exactly one of each; they map to/from Application.files on save.
+  cvFile: z.string().trim().optional(),
+  coverLetterFile: z.string().trim().optional(),
   source: z
     .string()
     .trim()

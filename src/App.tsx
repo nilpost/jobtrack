@@ -4,7 +4,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Toaster } from "@/components/ui/sonner"
 import { Pipeline } from "@/pages/Pipeline"
 import { CareerShowcase } from "@/pages/CareerShowcase"
-import { ComingSoon } from "@/pages/ComingSoon"
+import { CvPrep } from "@/pages/CvPrep"
 
 const queryClient = new QueryClient()
 
@@ -30,10 +30,7 @@ export default function App() {
             <Pipeline />
           </TabsContent>
           <TabsContent value="cv">
-            <ComingSoon
-              title="CV & Cover Letter Prep"
-              description="A metadata view of your submitted materials and ATS keyword coverage per application — filenames only, documents themselves never leave your machine."
-            />
+            <CvPrep />
           </TabsContent>
           <TabsContent value="career">
             <CareerShowcase />

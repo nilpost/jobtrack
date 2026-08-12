@@ -28,6 +28,10 @@ const SAMPLE: (NewApplication & { stageHistory: StageEvent[] })[] = [
     contactPerson: "Aiko Tanaka",
     source: "https://example.com/jobs/nimbus-pm",
     stageHistory: history("interview", [21, 18, 9]),
+    files: [
+      { kind: "cv", filename: "cv_nimbus_product_manager.pdf" },
+      { kind: "cover_letter", filename: "cover_nimbus_product_manager.pdf" },
+    ],
   },
   {
     company: "Kestrel Energy Systems",
@@ -41,6 +45,10 @@ const SAMPLE: (NewApplication & { stageHistory: StageEvent[] })[] = [
     contactPerson: "Marcus Webb",
     source: "https://example.com/jobs/kestrel-program-mgr",
     stageHistory: history("offer", [40, 36, 24, 12]),
+    files: [
+      { kind: "cv", filename: "cv_kestrel_program_manager.pdf" },
+      { kind: "cover_letter", filename: "cover_kestrel_program_manager.pdf" },
+    ],
   },
   {
     company: "Torii Manufacturing DX",
@@ -53,6 +61,9 @@ const SAMPLE: (NewApplication & { stageHistory: StageEvent[] })[] = [
     authorizationSignal: "silent",
     source: "https://example.com/jobs/torii-bd",
     stageHistory: history("applied", [6, 4]),
+    // Deliberately the untailored generic CV, and no cover letter — this is
+    // the pattern the CV & Cover Letters tab is meant to surface.
+    files: [{ kind: "cv", filename: "cv_generic_product.pdf" }],
   },
   {
     company: "Cobalt Analytics",
@@ -65,6 +76,10 @@ const SAMPLE: (NewApplication & { stageHistory: StageEvent[] })[] = [
     authorizationSignal: "requires_sponsorship",
     source: "https://example.com/jobs/cobalt-ai-lead",
     stageHistory: history("rejected", [55, 51, 38]),
+    files: [
+      { kind: "cv", filename: "cv_generic_product.pdf" },
+      { kind: "cover_letter", filename: "cover_cobalt_ai_lead.pdf" },
+    ],
   },
   {
     company: "Harborlight Automation",
@@ -77,6 +92,7 @@ const SAMPLE: (NewApplication & { stageHistory: StageEvent[] })[] = [
     authorizationSignal: "domestic_only_implied",
     source: "https://example.com/jobs/harborlight-director",
     stageHistory: history("no_response", [45, 42]),
+    files: [{ kind: "cv", filename: "cv_generic_product.pdf" }],
   },
   {
     company: "Meridian Oil & Gas Digital",
@@ -102,6 +118,10 @@ const SAMPLE: (NewApplication & { stageHistory: StageEvent[] })[] = [
     contactPerson: "Sana Ito",
     source: "https://example.com/jobs/aether-head-product",
     stageHistory: history("interview", [15, 13, 5]),
+    files: [
+      { kind: "cv", filename: "cv_aether_grid_ai.pdf" },
+      { kind: "cover_letter", filename: "cover_aether_grid_ai.pdf" },
+    ],
   },
   {
     company: "Quiet Foundry Robotics",
@@ -114,6 +134,10 @@ const SAMPLE: (NewApplication & { stageHistory: StageEvent[] })[] = [
     authorizationSignal: "requires_sponsorship",
     source: "https://example.com/jobs/quiet-foundry-pm",
     stageHistory: history("withdrawn", [70, 65]),
+    files: [
+      { kind: "cv", filename: "cv_quiet_foundry_fleet.pdf" },
+      { kind: "cover_letter", filename: "cover_quiet_foundry_fleet.pdf" },
+    ],
   },
   {
     company: "Lucent Process Systems",
@@ -127,6 +151,10 @@ const SAMPLE: (NewApplication & { stageHistory: StageEvent[] })[] = [
     contactPerson: "Devon Price",
     source: "https://example.com/jobs/lucent-transformation-pm",
     stageHistory: history("hired", [95, 90, 78, 60, 50]),
+    files: [
+      { kind: "cv", filename: "cv_lucent_transformation.pdf" },
+      { kind: "cover_letter", filename: "cover_lucent_transformation.pdf" },
+    ],
   },
   {
     company: "Northgate Petrochemical",

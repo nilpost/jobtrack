@@ -24,7 +24,8 @@ import {
 } from "@/components/ui/select"
 import { StatusBadge } from "@/components/status-badge"
 import { applicationFormSchema, type ApplicationFormValues } from "@/lib/schema"
-import { createApplication, updateApplication, addNote } from "@/lib/db"
+import { toApplicationPatch, toFormValues } from "@/lib/applicationForm"
+import { createApplication, updateApplication, addNote, setStatus } from "@/lib/db"
 import { STATUSES, STATUS_LABELS, AUTHORIZATION_SIGNALS, type Application } from "@/lib/types"
 
 const AUTHORIZATION_LABELS: Record<string, string> = {
@@ -32,21 +33,6 @@ const AUTHORIZATION_LABELS: Record<string, string> = {
   pr_or_citizen_required: "PR / citizen required",
   domestic_only_implied: "Domestic only (implied)",
   silent: "Not stated",
-}
-
-function toFormValues(app?: Application): ApplicationFormValues {
-  return {
-    company: app?.company ?? "",
-    role: app?.role ?? "",
-    roleType: app?.roleType ?? "",
-    sector: app?.sector ?? "",
-    channel: app?.channel ?? "",
-    status: app?.status ?? "draft",
-    fitScore: app?.fitScore,
-    authorizationSignal: app?.authorizationSignal,
-    contactPerson: app?.contactPerson ?? "",
-    source: app?.source ?? "",
-  }
 }
 
 export function ApplicationDialog({
@@ -74,10 +60,20 @@ export function ApplicationDialog({
 
   async function onSubmit(values: ApplicationFormValues) {
     if (isEdit) {
-      await updateApplication(application.id, values)
+      await updateApplication(application.id, toApplicationPatch(values))
+      // Status is deliberately excluded from that patch and routed through
+      // setStatus instead. updateApplication writes raw fields, so patching
+      // `status` directly would move the card without appending to
+      // stageHistory — and the funnel, response rate, and time-in-stage all
+      // read stageHistory, not the current status. setStatus is the only
+      // writer that keeps the two in sync; the board's drag-and-drop already
+      // goes through it.
+      if (values.status !== application.status) {
+        await setStatus(application.id, values.status)
+      }
       toast.success("Application updated")
     } else {
-      await createApplication(values)
+      await createApplication({ ...toApplicationPatch(values), status: values.status })
       toast.success(`Added ${values.role} at ${values.company}`)
     }
     onOpenChange(false)
@@ -194,6 +190,28 @@ export function ApplicationDialog({
                 <p className="text-xs text-destructive">{form.formState.errors.source.message}</p>
               )}
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="cvFile">CV file</Label>
+              <Input
+                id="cvFile"
+                {...form.register("cvFile")}
+                placeholder="e.g. cv_acme_pm.pdf"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="coverLetterFile">Cover letter file</Label>
+              <Input
+                id="coverLetterFile"
+                {...form.register("coverLetterFile")}
+                placeholder="e.g. cover_acme_pm.pdf"
+              />
+            </div>
+            <p className="col-span-2 -mt-0.5 text-xs text-muted-foreground">
+              Filenames only — jobtrack never stores or uploads the documents themselves.
+            </p>
           </div>
 
           {isEdit && application && (
