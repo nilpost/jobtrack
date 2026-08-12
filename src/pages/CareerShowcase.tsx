@@ -1,11 +1,12 @@
 import { useState } from "react"
-import { FileUp, Pencil, Mail, Phone, MapPin, Link as LinkIcon, Github } from "lucide-react"
+import { FileUp, Pencil, Mail, Phone, MapPin, Link as LinkIcon, Github, Linkedin } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { ImportResumeDialog } from "@/components/showcase/ImportResumeDialog"
+import { ImportLinkedInDialog } from "@/components/showcase/ImportLinkedInDialog"
 import { useProfile } from "@/hooks/useProfile"
 
 function ContactRow({ icon: Icon, children }: { icon: typeof Mail; children: React.ReactNode }) {
@@ -19,7 +20,8 @@ function ContactRow({ icon: Icon, children }: { icon: typeof Mail; children: Rea
 
 export function CareerShowcase() {
   const profile = useProfile()
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const [resumeDialogOpen, setResumeDialogOpen] = useState(false)
+  const [linkedInDialogOpen, setLinkedInDialogOpen] = useState(false)
 
   if (profile === undefined) {
     return <div className="p-8 text-center text-sm text-muted-foreground">Loading…</div>
@@ -34,16 +36,23 @@ export function CareerShowcase() {
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
             <p className="max-w-sm text-sm text-muted-foreground">
-              Import a resume (PDF or DOCX) to build a profile view here. Extraction is heuristic
-              — you review and correct everything before it's saved.
+              Import a resume (PDF or DOCX) or your LinkedIn data export to build a profile view
+              here. Extraction is heuristic — you review and correct everything before it's saved.
             </p>
-            <Button onClick={() => setDialogOpen(true)}>
-              <FileUp className="h-3.5 w-3.5" />
-              Import resume
-            </Button>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button onClick={() => setResumeDialogOpen(true)}>
+                <FileUp className="h-3.5 w-3.5" />
+                Import resume
+              </Button>
+              <Button variant="outline" onClick={() => setLinkedInDialogOpen(true)}>
+                <Linkedin className="h-3.5 w-3.5" />
+                Import from LinkedIn
+              </Button>
+            </div>
           </CardContent>
         </Card>
-        <ImportResumeDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+        <ImportResumeDialog open={resumeDialogOpen} onOpenChange={setResumeDialogOpen} />
+        <ImportLinkedInDialog open={linkedInDialogOpen} onOpenChange={setLinkedInDialogOpen} />
       </>
     )
   }
@@ -63,10 +72,16 @@ export function CareerShowcase() {
                 {profile.github && <ContactRow icon={Github}>{profile.github}</ContactRow>}
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={() => setDialogOpen(true)}>
-              <Pencil className="h-3.5 w-3.5" />
-              Edit
-            </Button>
+            <div className="flex shrink-0 gap-2">
+              <Button variant="outline" size="sm" onClick={() => setLinkedInDialogOpen(true)}>
+                <Linkedin className="h-3.5 w-3.5" />
+                Import from LinkedIn
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setResumeDialogOpen(true)}>
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </Button>
+            </div>
           </div>
 
           {profile.summary && <p className="text-sm">{profile.summary}</p>}
@@ -131,7 +146,12 @@ export function CareerShowcase() {
         </Card>
       )}
 
-      <ImportResumeDialog open={dialogOpen} onOpenChange={setDialogOpen} editingProfile={profile} />
+      <ImportResumeDialog
+        open={resumeDialogOpen}
+        onOpenChange={setResumeDialogOpen}
+        editingProfile={profile}
+      />
+      <ImportLinkedInDialog open={linkedInDialogOpen} onOpenChange={setLinkedInDialogOpen} />
     </div>
   )
 }

@@ -37,7 +37,15 @@ sync-backend setup, and the plan this was built from for the full roadmap.
   feeding a heuristic section/contact parser. Populates the Career Showcase
   tab's profile via an editable review form — nothing is ever saved without
   you checking it first. See [src/lib/importers/resume.ts](src/lib/importers/resume.ts).
-- LinkedIn's own "Get a copy of your data" export — not yet built
+- **LinkedIn's own "Get a copy of your data" export** — the .zip of CSVs
+  LinkedIn lets any user download from their own account (Settings & Privacy
+  → Data privacy → Get a copy of your data). Reads whichever of
+  `Profile.csv`, `Email Addresses.csv`, `Positions.csv`, `Education.csv`,
+  and `Skills.csv` are present in the export (LinkedIn's "Basic" and
+  "Complete" tiers ship different file sets) and reports what's missing
+  rather than failing the whole import. Feeds the same review form as the
+  resume importer above. See
+  [src/lib/importers/linkedin.ts](src/lib/importers/linkedin.ts).
 
 jobtrack does not scrape or automate LinkedIn, and "Sign in with LinkedIn"
 (when it ships) is identity-only — LinkedIn's own API does not expose work
