@@ -62,17 +62,23 @@ another device on the next sync. A brand-new device that has nothing yet
 cannot wipe the server by syncing an empty payload — that case is guarded
 and tested.
 
-**How it is secured, today.** A single shared token that you generate when
-setting up the server and paste into the app once per device. It is sent as
-a bearer token and stored in that browser's `localStorage`. It is per-device
-configuration, not data: it never appears in an export, a CSV, or the sync
-payload.
+**How it is secured.** Two options, either one sufficient:
 
-This is deliberately a single-user design. There is **no "sign in with
-Google" and no "sign in with LinkedIn" for sync** — the LinkedIn sign-in
-that exists is identity only and is not connected to sync at all. Replacing
-the shared token with a real login is a planned change; see
-[docs/BACKLOG.md](docs/BACKLOG.md).
+- **A shared token** — generated when you set up the server and pasted into
+  the app once per device. Sent as a bearer token, stored in that browser's
+  `localStorage`. It is per-device configuration, not data: it never appears
+  in an export, a CSV, or the sync payload.
+- **Sign in with Google** — for when copying a secret between devices is the
+  annoying part. Only addresses you list in `GOOGLE_ALLOWED_EMAILS` on your
+  server may sync; anyone can create a Google account, so identity alone
+  grants nothing, and the server refuses to start if Google is enabled
+  without that list.
+
+Still deliberately single-user: one deployment holds one person's data, and
+signing in replaces the token rather than partitioning storage.
+
+The separate **"Sign in with LinkedIn"** is identity only and grants no sync
+access at all.
 
 Setup instructions: [docs/self-hosting.md](docs/self-hosting.md).
 

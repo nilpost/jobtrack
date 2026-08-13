@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import { CloudOff, Cloud, Loader2, Linkedin, LogOut } from "lucide-react"
+import { CloudOff, Cloud, Loader2, Linkedin, LogOut, KeyRound } from "lucide-react"
 
 import {
   Dialog,
@@ -19,6 +19,7 @@ import {
   checkHealth,
   clearSyncConfig,
   fetchIdentity,
+  googleSignInUrl,
   linkedInSignInUrl,
   linkedInSignOut,
   loadSyncConfig,
@@ -47,6 +48,26 @@ export function SyncSettingsDialog({
   const [connected, setConnected] = useState(!!existing)
   const [identity, setIdentity] = useState<LinkedInIdentity | null>(null)
   const [linkedInConfigured, setLinkedInConfigured] = useState(false)
+  const [googleConfigured, setGoogleConfigured] = useState(false)
+  const [googleCanSync, setGoogleCanSync] = useState(false)
+
+  function refreshIdentity(endpointToUse: string) {
+    // Identity lives in an httpOnly cookie on the sync server, so the only
+    // way to know who is signed in is to ask it.
+    return fetchIdentity(endpointToUse)
+      .then((r) => {
+        setIdentity(r.identity)
+        setLinkedInConfigured(r.configured)
+        setGoogleConfigured(!!r.google?.configured)
+        setGoogleCanSync(!!r.google?.canSync)
+      })
+      .catch(() => {
+        setIdentity(null)
+        setLinkedInConfigured(false)
+        setGoogleConfigured(false)
+        setGoogleCanSync(false)
+      })
+  }
 
   useEffect(() => {
     if (!open) return
@@ -55,33 +76,54 @@ export function SyncSettingsDialog({
     if (!config) {
       setIdentity(null)
       setLinkedInConfigured(false)
+      setGoogleConfigured(false)
+      setGoogleCanSync(false)
       return
     }
-    // Identity lives in an httpOnly cookie on the sync server, so the only
-    // way to know who is signed in is to ask it.
-    fetchIdentity(config.endpoint)
-      .then((r) => {
-        setIdentity(r.identity)
-        setLinkedInConfigured(r.configured)
-      })
-      .catch(() => {
-        setIdentity(null)
-        setLinkedInConfigured(false)
-      })
+    void refreshIdentity(config.endpoint)
   }, [open])
 
+  // The Google callback returns to the app with a result in the query string.
+  // Reporting it is what distinguishes "signed in and syncing" from the two
+  // silent failures: declined, and signed in with an address the server does
+  // not allow.
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get("google")
+    if (!result) return
+    if (result === "ok") toast.success("Signed in with Google — sync is authorised.")
+    else if (result === "not_allowed") {
+      toast.error("That Google account is not allowed to sync", {
+        description: "Add its address to GOOGLE_ALLOWED_EMAILS on the server, then sign in again.",
+      })
+    } else if (result === "denied") toast.info("Google sign-in was cancelled.")
+    else toast.error("Google sign-in failed.")
+    // Strip the parameter so a refresh does not replay the toast.
+    const url = new URL(window.location.href)
+    url.searchParams.delete("google")
+    window.history.replaceState({}, "", url.toString())
+  }, [])
+
+  /** Endpoint is required; the token is not — connecting with the endpoint
+   *  alone is the Google path, where the credential is a cookie the server
+   *  sets rather than a value stored here. */
   async function handleConnect() {
-    if (!endpoint.trim() || !token.trim()) return
+    if (!endpoint.trim()) return
     setBusy(true)
     try {
       // Reachability is checked before the config is saved, so a typo
       // surfaces here rather than as a silent failure later.
       const health = await checkHealth(endpoint.trim())
       if (!health.ok) throw new Error("Server did not report healthy")
-      saveSyncConfig({ endpoint: endpoint.trim(), token: token.trim() })
+      saveSyncConfig({ endpoint: endpoint.trim(), token: token.trim() || undefined })
       setConnected(true)
       setLinkedInConfigured(health.linkedin)
-      toast.success("Connected", { description: "Run a sync to exchange data." })
+      setGoogleConfigured(health.google)
+      await refreshIdentity(endpoint.trim())
+      toast.success("Connected", {
+        description: token.trim()
+          ? "Run a sync to exchange data."
+          : "Now sign in with Google to authorise sync.",
+      })
     } catch (err) {
       toast.error("Couldn't reach that server", {
         description: err instanceof Error ? err.message : String(err),
@@ -167,7 +209,9 @@ export function SyncSettingsDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="sync-token">Sync token</Label>
+            <Label htmlFor="sync-token">
+              Sync token <span className="font-normal text-muted-foreground">(optional)</span>
+            </Label>
             <Input
               id="sync-token"
               type="password"
@@ -181,11 +225,45 @@ export function SyncSettingsDialog({
               server. Stored in this browser only — it is never included in an export or sent to
               another device.
             </p>
+            <p className="text-xs text-muted-foreground">
+              Leave it blank to sign in with Google instead, if your server has that configured.
+              Either one authorises sync; you don't need both.
+            </p>
           </div>
+
+          {connected && googleConfigured && (
+            <div className="space-y-1.5 rounded-md border p-3">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="flex items-center gap-1.5">
+                  <KeyRound className="h-3.5 w-3.5" />
+                  Google sign-in
+                </Label>
+                {googleCanSync ? (
+                  <Badge variant="secondary">Authorised</Badge>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const config = loadSyncConfig()
+                      if (config) window.location.href = googleSignInUrl(config.endpoint)
+                    }}
+                  >
+                    Sign in with Google
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {googleCanSync
+                  ? "This browser is signed in with an account your server allows, so sync works without a token."
+                  : "Signing in authorises sync for this browser — but only for addresses listed in GOOGLE_ALLOWED_EMAILS on your server. Any other account is refused."}
+              </p>
+            </div>
+          )}
 
           <div className="flex gap-2">
             {!connected ? (
-              <Button onClick={handleConnect} disabled={busy || !endpoint.trim() || !token.trim()}>
+              <Button onClick={handleConnect} disabled={busy || !endpoint.trim()}>
                 {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 Connect
               </Button>

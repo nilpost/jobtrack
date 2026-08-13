@@ -53,28 +53,27 @@ gated by a shared secret you paste into the app once per device. That is a
 deliberate single-user design, not an oversight — but it is also the reason
 the items below exist.
 
-### 1.1 — Google Sign-In as the sync credential *(recommended first)*
+### 1.1 — Google Sign-In as the sync credential — **BUILT**
 
-Replace the pasted bearer token with a real login.
+Done. Google sign-in now authorises sync as an *alternative* to the shared
+token; the token path is unchanged and remains the zero-dependency default.
+Blocked only on a Google Cloud OAuth client, which is self-serve — see
+[self-hosting.md](self-hosting.md#optional-sign-in-with-google-instead-of-a-token).
 
-Google OIDC is the right choice over LinkedIn here: the app registration is
-self-serve and instant, the `sub` claim is a stable per-user identifier, and
-it does not depend on a partner programme that can be withdrawn. The server
-would verify the Google ID token, map `sub` → account, and issue its own
-session cookie — the same cookie machinery `linkedin.ts` already uses, so
-much of this is refactoring rather than new code.
+Kept single-tenant, as recommended: one deployment holds one person's data,
+and login simply replaces the token rather than partitioning storage. That
+avoided a schema migration and left invariants 7 and 8 (tombstones, the
+empty-payload guard) untouched and still valid.
 
-- **Blocked on:** a Google Cloud OAuth client (client id + secret + redirect
-  URI). Self-serve, minutes.
-- **Also requires:** deciding whether the server stays single-tenant. Right
-  now one deployment holds one person's data. Real login implies either
-  "one deployment per person, login just replaces the token" (small) or
-  "multi-tenant, rows keyed by account" (a schema migration and a careful
-  look at every sync query). Recommend the first — it keeps the
-  self-hosting story honest and is a fraction of the work.
-- **Watch out:** the deletion-tombstone logic and the "empty payload must
-  never wipe the server" guard (invariants 7 and 8) are both account-scoped
-  assumptions today. Multi-tenant would need both re-verified.
+The security property to preserve if this is ever changed: **anyone can
+create a Google account**, so proving a Google identity cannot by itself
+grant access. `GOOGLE_ALLOWED_EMAILS` decides, it is re-checked per request
+against current config, and the server refuses to start if Google is
+configured without it.
+
+Remaining, small: multi-tenant would still need invariants 7 and 8
+re-verified per account, and is only worth doing if a shared deployment is
+ever actually wanted.
 
 ### 1.2 — LinkedIn sign-in as a sync credential
 

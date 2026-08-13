@@ -1,19 +1,23 @@
 import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { getCookie, setCookie, deleteCookie } from "hono/cookie"
-import { timingSafeEqual } from "node:crypto"
 
 import { SyncStore } from "./db.ts"
 import { mergeSyncState } from "./sync.ts"
 import { syncStateSchema } from "./schema.ts"
+import { constantTimeEquals, randomState, sign, unsign } from "./signing.ts"
 import {
   buildAuthorizeUrl,
   exchangeCodeForIdentity,
-  randomState,
-  sign,
-  unsign,
   type LinkedInConfig,
 } from "./linkedin.ts"
+import {
+  buildAuthorizeUrl as buildGoogleAuthorizeUrl,
+  exchangeCodeForIdentity as exchangeGoogleCode,
+  isAllowedToSync,
+  type GoogleConfig,
+  type GoogleIdentity,
+} from "./google.ts"
 
 export interface AppConfig {
   store: SyncStore
@@ -27,16 +31,48 @@ export interface AppConfig {
   /** Absent when LinkedIn credentials are not configured; every /auth route
    *  then reports itself unconfigured instead of half-working. */
   linkedin?: LinkedInConfig
+  /** Absent when Google credentials are not configured. When present, an
+   *  allowlisted Google session is accepted as a sync credential — see the
+   *  /api/v1 middleware. */
+  google?: GoogleConfig
 }
 
 const STATE_COOKIE = "jobtrack_oauth_state"
 const SESSION_COOKIE = "jobtrack_identity"
 
-function constantTimeEquals(a: string, b: string): boolean {
-  const bufA = Buffer.from(a)
-  const bufB = Buffer.from(b)
-  if (bufA.length !== bufB.length) return false
-  return timingSafeEqual(bufA, bufB)
+/** Reads and verifies the identity cookie. Returns null for absent, forged,
+ *  or unparseable — all expected conditions, not errors. */
+function readIdentity(
+  cookie: string | undefined,
+  secret: string,
+): (GoogleIdentity | Record<string, unknown>) | null {
+  if (!cookie) return null
+  const raw = unsign(cookie, secret)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Whether the request carries a Google session currently permitted to sync.
+ *
+ * The allowlist is consulted here, per request, rather than trusted from
+ * anything stored in the cookie — so removing an address from configuration
+ * revokes access on the next request instead of whenever the cookie happens
+ * to expire.
+ *
+ * A LinkedIn session deliberately never satisfies this: LinkedIn sign-in is
+ * identity only and carries no allowlist, so honouring it would let any
+ * LinkedIn user sync.
+ */
+function hasGoogleSyncAccess(config: AppConfig, cookie: string | undefined): boolean {
+  if (!config.google) return false
+  const identity = readIdentity(cookie, config.sessionSecret)
+  if (!identity || identity.provider !== "google") return false
+  return isAllowedToSync(config.google, identity.email as string | undefined)
 }
 
 export function createApp(config: AppConfig) {
@@ -58,17 +94,28 @@ export function createApp(config: AppConfig) {
   // Unauthenticated on purpose: this is what a deploy check and an uptime
   // monitor hit, and it discloses nothing beyond "a jobtrack server is here".
   app.get("/api/health", (c) =>
-    c.json({ ok: true, service: "jobtrack-sync", linkedin: !!config.linkedin }),
+    c.json({
+      ok: true,
+      service: "jobtrack-sync",
+      linkedin: !!config.linkedin,
+      google: !!config.google,
+    }),
   )
 
   // -------------------------------------------------------------------------
   // Sync
   // -------------------------------------------------------------------------
 
+  // Two ways to authorise sync, deliberately: the shared bearer token, or an
+  // allowlisted Google session. The token path is unchanged and remains the
+  // zero-dependency default; Google is an alternative for people who would
+  // rather sign in than copy a secret between devices.
   app.use("/api/v1/*", async (c, next) => {
     const header = c.req.header("Authorization") ?? ""
     const token = header.startsWith("Bearer ") ? header.slice(7) : ""
-    if (!token || !constantTimeEquals(token, config.syncToken)) {
+    const tokenOk = !!token && constantTimeEquals(token, config.syncToken)
+
+    if (!tokenOk && !hasGoogleSyncAccess(config, getCookie(c, SESSION_COOKIE))) {
       return c.json({ error: "Unauthorized" }, 401)
     }
     await next()
@@ -158,16 +205,82 @@ export function createApp(config: AppConfig) {
     return c.redirect(`${config.appOrigin}/?linkedin=ok`)
   })
 
-  app.get("/auth/me", (c) => {
-    const cookie = getCookie(c, SESSION_COOKIE)
-    if (!cookie) return c.json({ identity: null, configured: !!config.linkedin })
-    const raw = unsign(cookie, config.sessionSecret)
-    if (!raw) return c.json({ identity: null, configured: !!config.linkedin })
-    try {
-      return c.json({ identity: JSON.parse(raw), configured: !!config.linkedin })
-    } catch {
-      return c.json({ identity: null, configured: !!config.linkedin })
+  // -------------------------------------------------------------------------
+  // Google identity — see google.ts. Unlike LinkedIn, an allowlisted Google
+  // session IS accepted as a sync credential.
+  // -------------------------------------------------------------------------
+
+  app.get("/auth/google/start", (c) => {
+    if (!config.google) return c.json({ error: "Google sign-in is not configured" }, 501)
+
+    const state = randomState()
+    setCookie(c, STATE_COOKIE, sign(state, config.sessionSecret), {
+      httpOnly: true,
+      secure: true,
+      sameSite: "Lax",
+      path: "/",
+      maxAge: 600,
+    })
+    return c.redirect(buildGoogleAuthorizeUrl(config.google, state))
+  })
+
+  app.get("/auth/google/callback", async (c) => {
+    if (!config.google) return c.json({ error: "Google sign-in is not configured" }, 501)
+
+    const returned = c.req.query("state") ?? ""
+    const cookie = getCookie(c, STATE_COOKIE) ?? ""
+    const expected = unsign(cookie, config.sessionSecret)
+    deleteCookie(c, STATE_COOKIE, { path: "/" })
+
+    if (!expected || !returned || !constantTimeEquals(returned, expected)) {
+      return c.json({ error: "Invalid OAuth state" }, 400)
     }
+
+    const code = c.req.query("code")
+    if (!code) return c.redirect(`${config.appOrigin}/?google=denied`)
+
+    let identity: GoogleIdentity
+    try {
+      identity = await exchangeGoogleCode(config.google, code)
+    } catch {
+      return c.redirect(`${config.appOrigin}/?google=error`)
+    }
+
+    // Signing in with an account that is not on the allowlist is a normal,
+    // expected outcome — say so specifically instead of a generic failure,
+    // because "wrong Google account" is the likeliest cause and the fix is
+    // for the operator to add the address.
+    if (!isAllowedToSync(config.google, identity.email)) {
+      return c.redirect(`${config.appOrigin}/?google=not_allowed`)
+    }
+
+    setCookie(c, SESSION_COOKIE, sign(JSON.stringify(identity), config.sessionSecret), {
+      httpOnly: true,
+      secure: true,
+      // None, not Lax: this cookie authorises the sync fetch, which is a
+      // cross-site subresource request whenever the app and the sync server
+      // sit on different registrable domains — the common self-hosting case.
+      // Lax would simply not be sent and sync would 401 with no clue why.
+      sameSite: "None",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    })
+    return c.redirect(`${config.appOrigin}/?google=ok`)
+  })
+
+  app.get("/auth/me", (c) => {
+    const identity = readIdentity(getCookie(c, SESSION_COOKIE), config.sessionSecret)
+    return c.json({
+      identity,
+      configured: !!config.linkedin,
+      google: {
+        configured: !!config.google,
+        // Whether THIS session can sync — the client uses it to decide
+        // between "signed in, syncing" and "signed in, but this account is
+        // not permitted".
+        canSync: hasGoogleSyncAccess(config, getCookie(c, SESSION_COOKIE)),
+      },
+    })
   })
 
   app.post("/auth/logout", (c) => {

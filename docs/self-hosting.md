@@ -178,6 +178,60 @@ off — and says so in the log, rather than presenting a button that fails.
 
 ---
 
+## Optional: Sign in with Google, instead of a token
+
+Unlike LinkedIn above, this one **authorises sync**. It exists so a new
+device can sign in rather than having you copy `JOBTRACK_SYNC_TOKEN` around.
+Either credential works and you do not need both — the token keeps working
+exactly as before.
+
+### The rule that matters
+
+**Anyone can create a Google account.** Proving a Google identity therefore
+cannot, by itself, be permission to touch your data. `GOOGLE_ALLOWED_EMAILS`
+is what actually decides, and it is **not optional**: configure Google
+without it and the server refuses to start rather than coming up quietly
+open to every Google user alive.
+
+The list is checked on every request against the current configuration, so
+removing an address revokes access immediately — not whenever a cookie
+happens to expire.
+
+### Setup
+
+1. <https://console.cloud.google.com/apis/credentials> → **Create
+   credentials** → *OAuth client ID* → **Web application**.
+2. **Authorised redirect URIs** → add exactly what you will set as
+   `GOOGLE_REDIRECT_URI`, e.g.
+   `https://sync.example.com/auth/google/callback`. Google rejects any
+   mismatch.
+3. Copy the Client ID and Client secret into `.env`.
+4. Set `GOOGLE_ALLOWED_EMAILS` to the address(es) permitted to sync,
+   comma-separated. Case does not matter.
+5. `docker compose up -d`. The boot log should read
+   `Google sign-in: enabled (1 allowed)`.
+6. In the app: Settings → Sync, enter the server URL, **leave the token
+   blank**, press Connect, then *Sign in with Google*.
+
+### Both must be HTTPS
+
+The identity cookie is issued `SameSite=None; Secure`, because the app and
+this server commonly sit on different domains and the cookie has to survive
+the cross-site sync request. That requires HTTPS on both sides. Behind the
+Cloudflare Tunnel above this is already true; over plain `http://` the
+browser silently drops the cookie and sync will 401 with nothing in the
+server log to explain it.
+
+### What can go wrong
+
+| Symptom | Cause |
+| --- | --- |
+| `?google=not_allowed` after signing in | The address is not in `GOOGLE_ALLOWED_EMAILS`. Add it and sign in again. Signing in with the *wrong one of several* Google accounts is the usual cause — the account chooser is forced for this reason. |
+| Sync 401s though sign-in looked fine | Cookie not reaching the server. Check both sides are HTTPS, and that `JOBTRACK_APP_ORIGIN` is the app's exact origin. |
+| Server will not start, complains about the allowlist | Working as intended. See the rule above. |
+
+---
+
 ## Troubleshooting
 
 | Symptom | Cause |

@@ -65,6 +65,42 @@ if (!linkedinConfigured && linkedinVars.some(Boolean)) {
   )
 }
 
+// Google is optional too, but with one extra rule: an allowlisted Google
+// session authorises SYNC, so enabling it without naming which accounts may
+// sync would open the dataset to anyone with a Google account — which is
+// everyone. That is a refusal to start, not a warning.
+const googleClientId = process.env.GOOGLE_CLIENT_ID
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET
+const googleRedirectUri = process.env.GOOGLE_REDIRECT_URI
+const googleVars = [googleClientId, googleClientSecret, googleRedirectUri]
+const googleCredentialsSet = googleVars.every(Boolean)
+
+const allowedEmails = (process.env.GOOGLE_ALLOWED_EMAILS ?? "")
+  .split(",")
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean)
+
+if (!googleCredentialsSet && googleVars.some(Boolean)) {
+  console.warn(
+    "[jobtrack-sync] Google sign-in is DISABLED: GOOGLE_CLIENT_ID, " +
+      "GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URI must all be set.",
+  )
+}
+
+if (googleCredentialsSet && allowedEmails.length === 0) {
+  console.error(
+    "\n[jobtrack-sync] Refusing to start: Google sign-in is configured but " +
+      "GOOGLE_ALLOWED_EMAILS is empty.\n" +
+      "  Signing in with Google grants access to sync, and anyone can create a\n" +
+      "  Google account — without an allowlist this server would accept every\n" +
+      "  one of them. Set the addresses permitted to sync, comma-separated:\n" +
+      "    GOOGLE_ALLOWED_EMAILS=you@gmail.com\n",
+  )
+  process.exit(1)
+}
+
+const googleConfigured = googleCredentialsSet && allowedEmails.length > 0
+
 const store = new SyncStore(dbPath)
 const app = createApp({
   store,
@@ -74,6 +110,14 @@ const app = createApp({
   linkedin: linkedinConfigured
     ? { clientId: clientId!, clientSecret: clientSecret!, redirectUri: redirectUri! }
     : undefined,
+  google: googleConfigured
+    ? {
+        clientId: googleClientId!,
+        clientSecret: googleClientSecret!,
+        redirectUri: googleRedirectUri!,
+        allowedEmails,
+      }
+    : undefined,
 })
 
 serve({ fetch: app.fetch, port }, (info) => {
@@ -81,6 +125,11 @@ serve({ fetch: app.fetch, port }, (info) => {
   console.log(`[jobtrack-sync] database: ${dbPath}`)
   console.log(`[jobtrack-sync] app origin: ${appOrigin}`)
   console.log(`[jobtrack-sync] LinkedIn sign-in: ${linkedinConfigured ? "enabled" : "disabled"}`)
+  console.log(
+    `[jobtrack-sync] Google sign-in: ${
+      googleConfigured ? `enabled (${allowedEmails.length} allowed)` : "disabled"
+    }`,
+  )
 })
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {

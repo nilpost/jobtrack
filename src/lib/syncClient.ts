@@ -14,7 +14,9 @@ const STORAGE_KEY = "jobtrack.sync"
 export interface SyncConfig {
   /** Origin of the sync server, e.g. https://sync.example.com — no path. */
   endpoint: string
-  token: string
+  /** Optional: absent when authorising with Google instead of a shared
+   *  token. One of the two must work or sync 401s. */
+  token?: string
 }
 
 /**
@@ -28,8 +30,10 @@ export function loadSyncConfig(): SyncConfig | null {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw) as Partial<SyncConfig>
-    if (!parsed.endpoint || !parsed.token) return null
-    return { endpoint: parsed.endpoint, token: parsed.token }
+    // The endpoint alone is a valid configuration now: with Google sign-in
+    // the credential is a cookie the server set, not something stored here.
+    if (!parsed.endpoint) return null
+    return { endpoint: parsed.endpoint, token: parsed.token || undefined }
   } catch {
     return null
   }
@@ -38,7 +42,12 @@ export function loadSyncConfig(): SyncConfig | null {
 export function saveSyncConfig(config: SyncConfig): void {
   localStorage.setItem(
     STORAGE_KEY,
-    JSON.stringify({ endpoint: config.endpoint.replace(/\/+$/, ""), token: config.token }),
+    JSON.stringify({
+      endpoint: config.endpoint.replace(/\/+$/, ""),
+      // Omitted rather than stored empty, so "signed in with Google" is
+      // distinguishable from "token was cleared".
+      ...(config.token ? { token: config.token } : {}),
+    }),
   )
 }
 
@@ -54,11 +63,13 @@ export interface SyncResult {
 
 /** Verifies an endpoint before the user commits to it — a wrong URL should
  *  fail here, in a settings dialog, not silently at the next sync. */
-export async function checkHealth(endpoint: string): Promise<{ ok: boolean; linkedin: boolean }> {
+export async function checkHealth(
+  endpoint: string,
+): Promise<{ ok: boolean; linkedin: boolean; google: boolean }> {
   const res = await fetch(`${endpoint.replace(/\/+$/, "")}/api/health`)
   if (!res.ok) throw new Error(`Server responded ${res.status}`)
-  const body = (await res.json()) as { ok?: boolean; linkedin?: boolean }
-  return { ok: !!body.ok, linkedin: !!body.linkedin }
+  const body = (await res.json()) as { ok?: boolean; linkedin?: boolean; google?: boolean }
+  return { ok: !!body.ok, linkedin: !!body.linkedin, google: !!body.google }
 }
 
 /**
@@ -71,17 +82,26 @@ export async function checkHealth(endpoint: string): Promise<{ ok: boolean; link
 export async function syncNow(config: SyncConfig): Promise<SyncResult> {
   const local = await getLocalSyncState()
 
+  // Both credentials are offered and the server accepts either: the bearer
+  // token when one is configured, or the Google session cookie. `credentials:
+  // "include"` is what carries that cookie — without it a Google-only setup
+  // 401s with no indication why.
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
+  if (config.token) headers.Authorization = `Bearer ${config.token}`
+
   const res = await fetch(`${config.endpoint}/api/v1/sync`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.token}`,
-    },
+    headers,
+    credentials: "include",
     body: JSON.stringify(local),
   })
 
   if (res.status === 401) {
-    throw new Error("Rejected by the server: check the sync token matches JOBTRACK_SYNC_TOKEN.")
+    throw new Error(
+      config.token
+        ? "Rejected by the server: check the sync token matches JOBTRACK_SYNC_TOKEN."
+        : "Rejected by the server: sign in with Google again, or check that your address is in GOOGLE_ALLOWED_EMAILS.",
+    )
   }
   if (!res.ok) {
     throw new Error(`Sync failed (HTTP ${res.status})`)
@@ -110,16 +130,26 @@ export interface LinkedInIdentity {
   picture?: string
 }
 
-export async function fetchIdentity(
-  endpoint: string,
-): Promise<{ identity: LinkedInIdentity | null; configured: boolean }> {
+export interface IdentityResponse {
+  identity: (LinkedInIdentity & { provider?: string }) | null
+  configured: boolean
+  google?: { configured: boolean; canSync: boolean }
+}
+
+export async function fetchIdentity(endpoint: string): Promise<IdentityResponse> {
   const res = await fetch(`${endpoint.replace(/\/+$/, "")}/auth/me`, { credentials: "include" })
   if (!res.ok) return { identity: null, configured: false }
-  return (await res.json()) as { identity: LinkedInIdentity | null; configured: boolean }
+  return (await res.json()) as IdentityResponse
 }
 
 export function linkedInSignInUrl(endpoint: string): string {
   return `${endpoint.replace(/\/+$/, "")}/auth/linkedin/start`
+}
+
+/** See server/src/google.ts. Unlike LinkedIn, an allowlisted Google session
+ *  authorises sync, which is why this is offered next to the token field. */
+export function googleSignInUrl(endpoint: string): string {
+  return `${endpoint.replace(/\/+$/, "")}/auth/google/start`
 }
 
 export async function linkedInSignOut(endpoint: string): Promise<void> {

@@ -1,5 +1,3 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto"
-
 /**
  * "Sign in with LinkedIn" via OpenID Connect.
  *
@@ -90,40 +88,7 @@ export async function exchangeCodeForIdentity(
   }
 }
 
-// ---------------------------------------------------------------------------
-// Signed values — used for both the CSRF state parameter and the session
-// cookie. HMAC rather than encryption because none of this is secret; what
-// matters is that the browser cannot forge it.
-// ---------------------------------------------------------------------------
-
-export function sign(value: string, secret: string): string {
-  const mac = createHmac("sha256", secret).update(value).digest("base64url")
-  return `${Buffer.from(value).toString("base64url")}.${mac}`
-}
-
-/** Returns null on any tampering rather than throwing — a bad cookie is an
- *  expected condition (rotated secret, forged value), not an error case. */
-export function unsign(signed: string, secret: string): string | null {
-  const dot = signed.lastIndexOf(".")
-  if (dot < 0) return null
-  const encoded = signed.slice(0, dot)
-  const mac = signed.slice(dot + 1)
-
-  let value: string
-  try {
-    value = Buffer.from(encoded, "base64url").toString()
-  } catch {
-    return null
-  }
-
-  const expected = createHmac("sha256", secret).update(value).digest("base64url")
-  const a = Buffer.from(mac)
-  const b = Buffer.from(expected)
-  // Length check first: timingSafeEqual throws on a length mismatch.
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return null
-  return value
-}
-
-export function randomState(): string {
-  return randomBytes(16).toString("base64url")
-}
+// The signing helpers this module used to own now live in signing.ts, since
+// google.ts needs the same primitives. Re-exported so existing importers of
+// this module keep working.
+export { sign, unsign, randomState } from "./signing.ts"
