@@ -17,6 +17,12 @@ import { defineConfig } from "vitest/config"
  * needed, because the two packages have separate dependency trees.
  */
 export default defineConfig({
+  // Vite searches UPWARD for a postcss config too, independently of the
+  // config resolution above, and finds the frontend's postcss.config.js —
+  // which requires tailwindcss, another root-only dependency. Supplying an
+  // inline (empty) config is what stops that search; there is no CSS in this
+  // package for it to process.
+  css: { postcss: { plugins: [] } },
   test: {
     include: ["test/**/*.test.ts"],
   },
