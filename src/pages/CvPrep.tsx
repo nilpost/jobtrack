@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { StatusBadge } from "@/components/status-badge"
 import { ApplicationDialog } from "@/components/forms/ApplicationDialog"
+import { JobMatchPanel } from "@/components/analysis/JobMatchPanel"
 import { useApplications } from "@/hooks/useApplications"
+import { useProfile } from "@/hooks/useProfile"
 import {
   applicationsMissingDocuments,
   documentCoverage,
@@ -53,6 +55,7 @@ function CoverageStat({ label, rate }: { label: string; rate: Rate }) {
  */
 export function CvPrep() {
   const apps = useApplications()
+  const profile = useProfile()
   const [editing, setEditing] = useState<Application | undefined>(undefined)
   const [dialogOpen, setDialogOpen] = useState(false)
 
@@ -61,7 +64,7 @@ export function CvPrep() {
     setDialogOpen(true)
   }
 
-  if (apps === undefined) {
+  if (apps === undefined || profile === undefined) {
     return <div className="p-8 text-center text-sm text-muted-foreground">Loading…</div>
   }
 
@@ -70,17 +73,25 @@ export function CvPrep() {
   const reused = reusedDocuments(apps)
   const anyRecorded = hasAnyRecordedDocument(apps)
 
+  // The job-match analysis reads the PROFILE, not applications, so it is
+  // useful with an empty pipeline and appears in every branch below rather
+  // than only once documents exist.
+  const analysis = <JobMatchPanel profile={profile} />
+
   if (apps.length === 0) {
     return (
-      <Card className="border-dashed">
-        <CardHeader>
-          <CardTitle className="text-base">CV &amp; Cover Letters</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          No applications yet. Once you add some, this tab tracks which ones have materials
-          attached and where the gaps are.
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <Card className="border-dashed">
+          <CardHeader>
+            <CardTitle className="text-base">CV &amp; Cover Letters</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            No applications yet. Once you add some, this tab tracks which ones have materials
+            attached and where the gaps are.
+          </CardContent>
+        </Card>
+        {analysis}
+      </div>
     )
   }
 
@@ -89,23 +100,26 @@ export function CvPrep() {
   // former reads as a failure that hasn't actually happened.
   if (!anyRecorded) {
     return (
-      <Card className="border-dashed">
-        <CardHeader>
-          <CardTitle className="text-base">CV &amp; Cover Letters</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <p>
-            No document filenames recorded yet, so there's nothing to report. Add a CV or cover
-            letter filename to an application (Pipeline → open a card → CV file / Cover letter
-            file) and coverage, gaps, and reuse will show up here.
-          </p>
-          <p>
-            Importing from job-agent fills these in automatically from its{" "}
-            <code className="text-xs">cv_file</code> and{" "}
-            <code className="text-xs">cover_letter_file</code> columns.
-          </p>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <Card className="border-dashed">
+          <CardHeader>
+            <CardTitle className="text-base">CV &amp; Cover Letters</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
+            <p>
+              No document filenames recorded yet, so there's nothing to report. Add a CV or cover
+              letter filename to an application (Pipeline → open a card → CV file / Cover letter
+              file) and coverage, gaps, and reuse will show up here.
+            </p>
+            <p>
+              Importing from job-agent fills these in automatically from its{" "}
+              <code className="text-xs">cv_file</code> and{" "}
+              <code className="text-xs">cover_letter_file</code> columns.
+            </p>
+          </CardContent>
+        </Card>
+        {analysis}
+      </div>
     )
   }
 
@@ -206,6 +220,8 @@ export function CvPrep() {
           ))}
         </CardContent>
       </Card>
+
+      {analysis}
 
       <ApplicationDialog open={dialogOpen} onOpenChange={setDialogOpen} application={editing} />
     </div>

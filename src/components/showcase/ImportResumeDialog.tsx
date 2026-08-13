@@ -11,7 +11,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { extractResumeText, parseResumeText } from "@/lib/importers/resume"
+import { analyseAts, type AtsFinding } from "@/lib/analysis/ats"
 import { saveProfile } from "@/lib/db"
 import { emptyProfile, type CandidateProfile } from "@/lib/profileTypes"
 import { ProfileReviewForm, draftToProfile, profileToDraft, type ProfileDraft } from "./ProfileReviewForm"
@@ -36,11 +38,15 @@ export function ImportResumeDialog({
     profileToDraft(editingProfile ?? emptyProfile()),
   )
   const [fileName, setFileName] = useState<string | null>(null)
+  // Parseability is judged on the extracted text, so this is the only point
+  // in the app where it can be checked — the raw text is not stored.
+  const [atsFindings, setAtsFindings] = useState<AtsFinding[]>([])
 
   function reset() {
     setStage(editingProfile ? "review" : "upload")
     setDraft(profileToDraft(editingProfile ?? emptyProfile()))
     setFileName(null)
+    setAtsFindings([])
   }
 
   async function handleFile(file: File) {
@@ -50,6 +56,7 @@ export function ImportResumeDialog({
       const text = await extractResumeText(file)
       const parsed = parseResumeText(text)
       setDraft(profileToDraft(parsed))
+      setAtsFindings(analyseAts(text))
       setStage("review")
       toast.info("Extracted a draft — review and correct before saving.", {
         description: "Resume layouts vary, so this is a starting point, not a finished profile.",
@@ -116,6 +123,30 @@ export function ImportResumeDialog({
           <div className="flex flex-col items-center gap-3 p-10 text-muted-foreground">
             <Loader2 className="h-8 w-8 animate-spin" />
             <p className="text-sm">Extracting text and parsing sections…</p>
+          </div>
+        )}
+
+        {stage === "review" && atsFindings.length > 0 && (
+          <div className="space-y-2 rounded-lg border p-3">
+            <p className="text-sm font-medium">ATS readability</p>
+            <p className="text-xs text-muted-foreground">
+              What an applicant tracking system sees when it reads this file's text layer — not
+              what it looks like on screen. Checked locally; the file is not uploaded.
+            </p>
+            {atsFindings.map((f) => (
+              <div key={f.id} className="flex items-start gap-2">
+                <Badge
+                  variant={f.severity === "problem" ? "destructive" : "secondary"}
+                  className="mt-0.5 shrink-0"
+                >
+                  {f.severity === "problem" ? "Problem" : f.severity === "warning" ? "Check" : "OK"}
+                </Badge>
+                <div className="min-w-0">
+                  <p className="text-sm">{f.title}</p>
+                  <p className="text-xs text-muted-foreground">{f.detail}</p>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 

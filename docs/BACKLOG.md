@@ -128,25 +128,38 @@ LinkedIn profile copy, outreach and interview prep.
    divergent logic. Decide *per capability* whether jobtrack owns it,
    job-agent owns it, or jobtrack visualises what job-agent produced.
 
-### 3.1 — Deterministic, local, no API key *(do this first)*
+### 3.1 — Deterministic, local, no API key — **BUILT**
 
-Everything here runs in the browser with no model and no data leaving the
-machine. `lib/importers/resume.ts` already extracts full CV text via pdf.js
-and mammoth, so the input exists.
+Done, in `src/lib/analysis/`. Everything runs in the browser: no model, no
+network, nothing leaves the machine.
 
-- **Keyword gap analysis.** Paste a job description; tokenise both sides;
-  report matched / partially matched / absent terms with counts. Deliberately
-  *not* a score — a percentage here is false precision.
-- **ATS-parseability check.** Port the checks job-agent already makes: does
-  the text layer extract cleanly, are email and phone present as literal
-  text rather than only inside an icon glyph or hyperlink, does reading
-  order match visual order.
-- **Weak-bullet detection.** Flag duty phrasing ("responsible for",
-  "managed") and bullets with no number in them. Detection only — the
-  rewrite is 3.2.
+- **Keyword gap analysis** (`keywords.ts`) — paste a posting, get matched /
+  partial / absent terms. Absent terms are ranked by how often the posting
+  repeats them, because a requirement stated three times is the one worth
+  acting on. No score, deliberately.
+- **ATS parseability** (`ats.ts`) — runs on the extracted text at import
+  time and surfaces in the resume import dialog, which is the only point
+  where the raw text exists (it is never stored).
+- **Weak-bullet detection** (`bullets.ts`) — duty phrasing, weak opening
+  verbs, and missing quantification, over the reviewed profile.
 
-Honest limit: none of this judges whether writing is *good*. It finds
-mechanical problems, which is genuinely most of what ATS rejection is.
+Analysis runs against the **saved profile**, not the raw CV text: the user
+has already corrected it, so a bad extraction cannot masquerade as a missing
+skill.
+
+**Honest limits, stated in the UI as well as here:** it compares words, not
+meaning. A small alias table handles the common equivalences (ML → machine
+learning) but nothing knows that "led a team of six" answers "leadership
+experience". It finds mechanical problems, which is most of what ATS
+rejection actually is — not whether the writing is good.
+
+Two noise controls worth preserving if this is touched. Phrases are not
+formed across line breaks or sentence punctuation, or a bulleted
+requirements list generates junk pairs from the end of one bullet and the
+start of the next ("analysis rust", "design sql"). And a one-off phrase is
+only reported when both halves are themselves missing, so it does not
+restate unigrams already listed. Both were found by running a real posting
+through the UI; the unit tests were too small to show either.
 
 ### 3.2 — LLM-assisted rewriting *(needs a decision first)*
 

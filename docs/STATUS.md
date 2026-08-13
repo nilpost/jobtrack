@@ -24,13 +24,14 @@ runs client-side against IndexedDB.
 | Resume PDF / DOCX import → reviewable profile draft | Done |
 | LinkedIn data-export (.zip) import → reviewable profile draft | Done |
 | CV & Cover Letters tab (coverage, gaps, reuse) | Done |
+| CV analysis: keyword gap vs a posting, weak bullets, ATS parseability | Done |
 | Career Showcase profile view | Done |
 | Sample data / demo mode | Done |
 | Sync server (`server/`) — merge, storage, auth, LinkedIn OIDC routes | Built, needs credentials |
 | Sync UI (Settings → Sync) + deletion tombstones | Done |
 | Frontend deployed to jobs.postiusgroup.com | Live |
 
-102 unit tests (90 frontend + 12 server). `npm run typecheck`, `npm test`,
+155 unit tests (131 frontend + 24 server). `npm run typecheck`, `npm test`,
 `npm run guard`, and `npm run build` all pass; `npm run test:all` runs both
 suites.
 
