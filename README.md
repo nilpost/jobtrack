@@ -14,7 +14,8 @@ control if you want it on more than one device.
 
 ## Status
 
-Usable. All three tabs are built and working entirely in the browser:
+Usable, and live at **https://jobs.postiusgroup.com**. All three tabs are
+built and working entirely in the browser:
 
 - **Pipeline** — Kanban board (drag to change stage) plus metrics: funnel,
   response and rejection rates, median time to first response, follow-up
@@ -38,6 +39,42 @@ Optional, off by default, and not required for any of the above:
 
 Both need credentials you supply. See [docs/STATUS.md](docs/STATUS.md) for
 where things stand in detail.
+
+## How syncing works
+
+**You do not need this.** By default jobtrack keeps everything in your
+browser's IndexedDB and never sends it anywhere — no account, no server, no
+network calls with your data in them. Skip this section entirely and the app
+works.
+
+Sync exists for one problem: using jobtrack on more than one device.
+
+**The model.** There is no jobtrack cloud to sign up for. You run the small
+server in [server/](server) yourself — a container with a SQLite file, on a
+NAS or any box you control. The app then pushes and pulls against it. Your
+data goes to your machine and nowhere else.
+
+**How devices agree.** Each device keeps its own IndexedDB copy and
+reconciles with the server on sync. Applications are merged per record, most
+recent write wins. Deletes are explicit: deleting a record writes a
+tombstone, so the deletion propagates instead of the record reappearing from
+another device on the next sync. A brand-new device that has nothing yet
+cannot wipe the server by syncing an empty payload — that case is guarded
+and tested.
+
+**How it is secured, today.** A single shared token that you generate when
+setting up the server and paste into the app once per device. It is sent as
+a bearer token and stored in that browser's `localStorage`. It is per-device
+configuration, not data: it never appears in an export, a CSV, or the sync
+payload.
+
+This is deliberately a single-user design. There is **no "sign in with
+Google" and no "sign in with LinkedIn" for sync** — the LinkedIn sign-in
+that exists is identity only and is not connected to sync at all. Replacing
+the shared token with a real login is a planned change; see
+[docs/BACKLOG.md](docs/BACKLOG.md).
+
+Setup instructions: [docs/self-hosting.md](docs/self-hosting.md).
 
 ## Import sources
 

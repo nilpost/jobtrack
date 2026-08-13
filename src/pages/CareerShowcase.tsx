@@ -39,6 +39,14 @@ export function CareerShowcase() {
               Import a resume (PDF or DOCX) or your LinkedIn data export to build a profile view
               here. Extraction is heuristic — you review and correct everything before it's saved.
             </p>
+            {/* Stated here rather than only inside the import dialog: the
+                expectation "I'll just log in and it will pull my profile"
+                forms before that dialog is ever opened. */}
+            <p className="max-w-sm text-xs text-muted-foreground">
+              The LinkedIn option reads the data export you download from LinkedIn yourself.
+              There is no sign-in that imports your history — LinkedIn does not expose work
+              history to third-party apps.
+            </p>
             <div className="flex flex-wrap justify-center gap-2">
               <Button onClick={() => setResumeDialogOpen(true)}>
                 <FileUp className="h-3.5 w-3.5" />
