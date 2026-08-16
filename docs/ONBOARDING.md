@@ -12,6 +12,8 @@ a new Claude session or a new contributor starting cold.
 3. **[BACKLOG.md](BACKLOG.md)** — what to work on next and what has been
    ruled out (with reasons, so it is not re-litigated).
 4. **[self-hosting.md](self-hosting.md)** — only if touching sync.
+5. **[job-agent-integration.md](job-agent-integration.md)** — how this repo
+   relates to job-agent, and what is deliberately *not* shared between them.
 
 ## Orientation in one paragraph
 

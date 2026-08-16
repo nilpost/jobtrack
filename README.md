@@ -86,10 +86,13 @@ Setup instructions: [docs/self-hosting.md](docs/self-hosting.md).
 
 - Manual entry
 - CSV round-trip in jobtrack's own format (Export CSV → edit → Import CSV)
-- **[job-agent](https://github.com/MadsLorentzen/ai-job-search)** — reads
+- **[job-agent](https://github.com/nilpost/job-agent)** — reads
   `job_search_tracker.csv` directly (job-agent's own 13-column format, not
   jobtrack's) and optionally `job_scraper/seen_jobs.json` for fit score,
-  verdict, and work-authorization signal. One-way and re-runnable: nothing is
+  verdict, and work-authorization signal. job-agent finds and applies;
+  jobtrack tracks what happened. See
+  [docs/job-agent-integration.md](docs/job-agent-integration.md) for the full
+  split and why the seam is one-way. One-way and re-runnable: nothing is
   written back to job-agent's files, and re-importing the same data is a
   no-op. Matching is case-insensitive on company + role; job-agent's status
   always wins on conflict (it's the system of record for what actually
