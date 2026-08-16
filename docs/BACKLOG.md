@@ -212,3 +212,65 @@ the script detects this and says so rather than failing obscurely.
 `verify-subdomains`. It is the Railway-hosted E-Companion, which
 `postius-hub/projects.json` explicitly says not to port or re-subdomain.
 Needs a look wherever it actually runs.
+
+---
+
+## 5. Extract the Kanban board into its own repo
+
+**Requested 2026-08-16.** The board should become a standalone, reusable
+Kanban/visualisation component in its own GitHub repo, usable across several
+projects; jobtrack then consumes it as a dependency rather than owning it.
+
+### 5.1 — What has to change first
+
+The board is not currently a component — it is jobtrack wearing a board. In
+`src/components/board/` it imports:
+
+| Import | Why it blocks extraction |
+| --- | --- |
+| `@/lib/db` | Calls `setStatus` / `deleteApplication` directly. A library must not own persistence. |
+| `@/lib/types` | Typed to `Application` and the `Status` enum. A reusable board cannot know what a job application is. |
+| `@/lib/metrics` | `daysInCurrentStage` — domain logic on the card. |
+| `sonner` | Fires its own toasts. The host should decide how feedback is shown. |
+
+So extraction is not "move four files". It is inverting every one of those
+dependencies:
+
+- **Generic over the item type.** The board takes `items` plus accessors
+  (`getId`, `getColumn`, and a `renderCard` slot) instead of `Application[]`.
+- **Columns as configuration**, not the hardcoded `BOARD_COLUMNS` /
+  `columnForStatus` mapping.
+- **Emit, never write.** `onMove(id, toColumn)` replaces the direct
+  `setStatus` call. The host persists — which also preserves jobtrack's
+  invariant that status changes go through `setStatus` (STATUS.md §1).
+- **No toasts, no `date-fns` opinions.** Feedback and formatting are the
+  host's.
+
+### 5.2 — What must NOT move
+
+`ClosedStatusDialog` is domain logic, not board logic: it asks *which*
+terminal status (rejected / no-response / withdrawn / offer-declined) a card
+is moving into. That question is meaningless in a generic board. It stays in
+jobtrack, expressed through a generic "confirm before a move into column X"
+hook.
+
+### 5.3 — Sequencing, honestly
+
+Extracting before a second consumer exists is speculative generality: the API
+gets frozen around one use case and then fights the second. Cheapest order:
+
+1. Do the dependency inversion **inside jobtrack** (generic props, no db
+   imports). Zero new repos, immediately testable, and most of the value —
+   the board stops being entangled.
+2. Identify the actual second consumer and what *it* needs from a board.
+3. Only then lift the directory into its own repo and publish.
+
+Step 1 is worth doing regardless of whether the repo ever happens.
+
+### 5.4 — Costs to accept going in
+
+- Two repos to version, release and keep in step.
+- jobtrack gains a dependency it does not have today (npm package or git
+  dependency), and its CI gains a way to break that is not its own fault.
+- Generic props are less readable than `Application`-typed ones. That is the
+  price of reuse and should be paid deliberately, not drifted into.
